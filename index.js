@@ -28,28 +28,42 @@ async function run() {
     await client.connect();
 
     const teachersCollection = client.db('teacherDB').collection('teachers')
- 
+
     // post teacher application data
     app.post('/teacher-application', async (req, res) => {
-  try {
-    const application = req.body;
-    const result = await teachersCollection.insertOne(application);
+      try {
+        const application = req.body;
+        const result = await teachersCollection.insertOne(application);
 
-    res.status(201).send({
-      message: 'Application submitted successfully!',
-      insertedId: result.insertedId
+        res.status(201).send({
+          message: 'Application submitted successfully!',
+          insertedId: result.insertedId
+        });
+      } catch (error) {
+        console.error('Error in apply-teacher:', error);
+        res.status(500).send({ message: 'Server error. Please try again later.' });
+      }
     });
-  } catch (error) {
-    console.error('Error in apply-teacher:', error);
-    res.status(500).send({ message: 'Server error. Please try again later.' });
-  }
-});
+
+    // get all pending application
+    app.get('/pending-teachers', async (req, res) => {
+      try {
+        const result = await teachersCollection
+          .find({ status: 'pending' })
+          .toArray();
+        
+          res.status(200).send(result);
+      } catch (error) {
+        console.error('Error fetching pending teachers:', error);
+        res.status(500).send({ message: 'Server error. Please try again later.' });
+      }
+    });
 
 
 
 
     // Send a ping to confirm a successful connection
-     await client.db("admin").command({ ping: 1 });
+    await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
