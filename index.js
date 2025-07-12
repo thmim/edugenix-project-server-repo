@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 require('dotenv').config();
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 
 // midleweare
@@ -51,12 +51,24 @@ async function run() {
         const result = await teachersCollection
           .find({ status: 'pending' })
           .toArray();
-        
-          res.status(200).send(result);
+
+        res.status(200).send(result);
       } catch (error) {
         console.error('Error fetching pending teachers:', error);
         res.status(500).send({ message: 'Server error. Please try again later.' });
       }
+    });
+
+    // update teachers status using patch using id
+    app.patch('/teachers/status/:id', async (req, res) => {
+      const { id } = req.params;
+      const { status } = req.body; // either "approved" or "rejected"
+
+      const result = await teachersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { status: status } }
+      );
+      res.send(result);
     });
 
 
