@@ -28,6 +28,7 @@ async function run() {
     await client.connect();
 
     const teachersCollection = client.db('teacherDB').collection('teachers')
+    const addClassCollection = client.db('teacherDB').collection('addCllass')
 
     // post teacher application data
     app.post('/teacher-application', async (req, res) => {
@@ -44,6 +45,18 @@ async function run() {
         res.status(500).send({ message: 'Server error. Please try again later.' });
       }
     });
+
+    // post add class data
+    app.post('/add-class', async (req, res) => {
+    try {
+        const classData = req.body;
+        const result = await addClassCollection.insertOne(classData);
+        res.send(result);
+    } catch (error) {
+        console.error('Error adding class:', error);
+        res.status(500).send({ error: 'Failed to add class' });
+    }
+});
 
     // get all pending application
     app.get('/pending-teachers', async (req, res) => {
