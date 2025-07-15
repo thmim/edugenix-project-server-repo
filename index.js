@@ -46,17 +46,28 @@ async function run() {
       }
     });
 
+    // get all added classes by teacher email
+    app.get('/my-classes', async (req, res) => {
+      const email = req.query.email;
+      try {
+        const result = await addClassCollection.find({ email }).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to fetch classes', error });
+      }
+    });
+
     // post add class data
     app.post('/add-class', async (req, res) => {
-    try {
+      try {
         const classData = req.body;
         const result = await addClassCollection.insertOne(classData);
         res.send(result);
-    } catch (error) {
+      } catch (error) {
         console.error('Error adding class:', error);
         res.status(500).send({ error: 'Failed to add class' });
-    }
-});
+      }
+    });
 
     // get all pending application
     app.get('/pending-teachers', async (req, res) => {
