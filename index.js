@@ -46,6 +46,12 @@ async function run() {
       }
     });
 
+    // get all added class
+    app.get('/classes',async(req,res)=>{
+      const result = await addClassCollection.find().toArray();
+      res.send(result);
+    })
+
     // get add class by id
     app.get('/my-classes/:id', async (req, res) => {
       const id = req.params.id;
