@@ -46,6 +46,29 @@ async function run() {
       }
     });
 
+    // get add class by id
+    app.get('/my-classes/:id', async (req, res) => {
+      const id = req.params.id;
+      const classData = await addClassCollection.findOne({ _id: new ObjectId(id) });
+      res.send(classData);
+    });
+
+    // update add class info by teacher
+    app.patch('/classes/:id', async (req, res) => {
+      const id = req.params.id;
+      const updateData = req.body;
+
+      try {
+        const result = await addClassCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $set: updateData }
+        );
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to update class', error });
+      }
+    });
+
     // get all added classes by teacher email
     app.get('/my-classes', async (req, res) => {
       const email = req.query.email;
