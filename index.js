@@ -57,6 +57,18 @@ async function run() {
       }
     });
 
+    // DELETE /classes/:id by teacher
+
+    app.delete('/my-classes/:id', async (req, res) => {
+      const id = req.params.id;
+      try {
+        const result = await addClassCollection.deleteOne({ _id: new ObjectId(id) });
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Failed to delete class', error });
+      }
+    });
+
     // post add class data
     app.post('/add-class', async (req, res) => {
       try {
