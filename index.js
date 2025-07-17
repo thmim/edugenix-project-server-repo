@@ -30,18 +30,58 @@ async function run() {
     const teachersCollection = client.db('teacherDB').collection('teachers')
     const addClassCollection = client.db('teacherDB').collection('addCllass')
     const usersCollection = client.db('teacherDB').collection('users')
-     
+
+
+    // Search user by email or name (partial match)
+    app.get('/users/search', async (req, res) => {
+      const search = req.query.email;
+      if (!search) {
+        return res.status(400).send({ message: 'Search query is required' });
+      }
+
+      const users = await usersCollection.find({
+        $or: [
+          { email: { $regex: search, $options: 'i' } },
+          // { name: { $regex: search, $options: 'i' } }
+        ]
+      })
+        .limit(10)
+        .toArray();
+
+      res.send(users);
+    });
 
     // post user info
-      app.post('/users', async (req, res) => {
+    app.post('/users', async (req, res) => {
       const email = req.body.email;
       const user = req.body;
+      console.log(user)
       const existingUser = await usersCollection.findOne({ email });
       if (!existingUser) {
         // Create new user
         await usersCollection.insertOne(user);
       }
       res.send({ message: "User Already Exsist" });
+    });
+
+    // Make user admin
+    app.patch('/users/:id/make-admin', async (req, res) => {
+      const { id } = req.params;
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role: 'admin' } }
+      );
+      res.send(result);
+    });
+
+    // Remove admin role
+    app.patch('/users/:id/remove-admin', async (req, res) => {
+      const { id } = req.params;
+      const result = await usersCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $set: { role: 'student' } }
+      );
+      res.send(result);
     });
 
     // post teacher application data
@@ -61,7 +101,7 @@ async function run() {
     });
 
     // get all added class
-    app.get('/classes',async(req,res)=>{
+    app.get('/classes', async (req, res) => {
       const result = await addClassCollection.find().toArray();
       res.send(result);
     })
@@ -141,21 +181,21 @@ async function run() {
     // update teachers status using patch using id
     app.patch('/teachers/status/:id', async (req, res) => {
       const { id } = req.params;
-      const { status,email } = req.body; // either "approved" or "rejected"
+      const { status, email } = req.body; // either "approved" or "rejected"
       const result = await teachersCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { status: status } }
       );
 
       // update user role
-      if(status==='approved'){
-        const userQuery = {email}
+      if (status === 'approved') {
+        const userQuery = { email }
         const userUpdateDoc = {
-          $set:{
-            role:"teacher"
+          $set: {
+            role: "teacher"
           }
         }
-        const roleRes = await usersCollection.updateOne(userQuery,userUpdateDoc)
+        const roleRes = await usersCollection.updateOne(userQuery, userUpdateDoc)
         console.log(roleRes.modifiedCount)
       }
       res.send(result);
