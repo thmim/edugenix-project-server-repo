@@ -141,12 +141,23 @@ async function run() {
     // update teachers status using patch using id
     app.patch('/teachers/status/:id', async (req, res) => {
       const { id } = req.params;
-      const { status } = req.body; // either "approved" or "rejected"
-
+      const { status,email } = req.body; // either "approved" or "rejected"
       const result = await teachersCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { status: status } }
       );
+
+      // update user role
+      if(status==='approved'){
+        const userQuery = {email}
+        const userUpdateDoc = {
+          $set:{
+            role:"teacher"
+          }
+        }
+        const roleRes = await usersCollection.updateOne(userQuery,userUpdateDoc)
+        console.log(roleRes.modifiedCount)
+      }
       res.send(result);
     });
 
