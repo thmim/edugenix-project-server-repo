@@ -29,6 +29,20 @@ async function run() {
 
     const teachersCollection = client.db('teacherDB').collection('teachers')
     const addClassCollection = client.db('teacherDB').collection('addCllass')
+    const usersCollection = client.db('teacherDB').collection('users')
+     
+
+    // post user info
+      app.post('/users', async (req, res) => {
+      const email = req.body.email;
+      const user = req.body;
+      const existingUser = await usersCollection.findOne({ email });
+      if (!existingUser) {
+        // Create new user
+        await usersCollection.insertOne(user);
+      }
+      res.send({ message: "User Already Exsist" });
+    });
 
     // post teacher application data
     app.post('/teacher-application', async (req, res) => {
