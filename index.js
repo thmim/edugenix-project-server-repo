@@ -105,6 +105,25 @@ async function run() {
       const result = await addClassCollection.find().toArray();
       res.send(result);
     })
+     
+    // get classes using specific id for class details page
+    app.get('/classes/:id', async (req, res) => {
+      const { id } = req.params;
+      const classData = await addClassCollection.findOne({ _id: new ObjectId(id) });
+      res.send(classData);
+    });
+
+    // get all approved classes
+    app.get('/approvedclasses', async (req, res) => {
+      try {
+
+        const result = await addClassCollection
+          .find({ status: 'approved' }).toArray();
+        res.send(result);
+      } catch (error) {
+        res.status(500).send({ message: 'Server error while fetching classes' });
+      }
+    });
 
     // get add class by id
     app.get('/my-classes/:id', async (req, res) => {
