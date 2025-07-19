@@ -2,6 +2,7 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 require('dotenv').config();
+const stripe = require('stripe')(process.env.PAYMENT_GATEWAY_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 
@@ -30,6 +31,7 @@ async function run() {
     const teachersCollection = client.db('teacherDB').collection('teachers')
     const addClassCollection = client.db('teacherDB').collection('addCllass')
     const usersCollection = client.db('teacherDB').collection('users')
+    const paymentsCollection = client.db('teacherDB').collection('payments')
 
 
     // Search user by email or name (partial match)
@@ -105,7 +107,7 @@ async function run() {
       const result = await addClassCollection.find().toArray();
       res.send(result);
     })
-     
+
     // get classes using specific id for class details page
     app.get('/classes/:id', async (req, res) => {
       const { id } = req.params;
@@ -220,7 +222,79 @@ async function run() {
       res.send(result);
     });
 
+    // Get enrolled classes for a user
+    app.get('/enrolled-classes/:email', async (req, res) => {
+      try {
+        const email = req.params.email;
+        //get enrolled class Data to aggregate paymentsCollection and classCollection
+        const enrolledClasses = await paymentsCollection.find({ email: email }).toArray();
+        const enrolledClassesDetails = [];
+        for (const payment of enrolledClasses) {
+          const courseDetails = await addClassCollection.findOne({ _id: new ObjectId(payment.courseId) });
+          if (courseDetails) {
+            enrolledClassesDetails.push({
+              ...payment,
+              courseTitle: courseDetails.title,
+              instructorName: courseDetails.name,
+              courseImage: courseDetails.image,
+            });
+          }
+        }
+        res.send(enrolledClassesDetails);
 
+      } catch (error) {
+        console.error('Error fetching enrolled classes:', error);
+        res.status(500).send({ error: 'Failed to fetch enrolled classes' });
+      }
+    });
+
+    // Mark payment and store history
+    app.post('/payments', async (req, res) => {
+      const { courseId, transactionId, amount, currency, email, paymentMethod } = req.body;
+
+      try {
+
+        // Insert payment history
+        const paymentEntry = {
+          courseId: new ObjectId(courseId),
+          transactionId,
+          amount,
+          email,
+          paid_at: new Date(),
+          paid_at_string: new Date().toISOString(),
+          paymentMethod
+        };
+
+        const paymentResult = await paymentsCollection.insertOne(paymentEntry);
+        res.status(201).send({
+          message: 'Payment recorded successfully',
+          insertedId: paymentResult.insertedId,
+
+        });
+        // res.json({ success: true, message: 'Payment recorded successfully' });
+      } catch (error) {
+        console.error('Payment processing error:', error);
+        res.status(500).json({ success: false, error: 'Internal server error' });
+      }
+    });
+
+    // payment intent API
+    app.post('/create-payment-intent', async (req, res) => {
+      const amountInCents = req.body.amountInCents
+      try {
+        const paymentIntent = await stripe.paymentIntents.create({
+          amount: amountInCents, // Amount in cents
+          currency: 'usd',
+          payment_method_types: ['card'],
+        });
+
+        res.send({
+          clientSecret: paymentIntent.client_secret,
+        });
+      } catch (error) {
+        res.status(400).send({ error: error.message });
+      }
+    });
 
 
     // Send a ping to confirm a successful connection
