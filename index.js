@@ -266,6 +266,15 @@ async function run() {
         };
 
         const paymentResult = await paymentsCollection.insertOne(paymentEntry);
+
+        if (paymentResult.insertedId) {
+                    const updateResult = await addClassCollection.updateOne(
+            { _id: new ObjectId(courseId) }, 
+            { $inc: { enrollmentCount: 1 } } 
+          );
+
+        }
+
         res.status(201).send({
           message: 'Payment recorded successfully',
           insertedId: paymentResult.insertedId,
