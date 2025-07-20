@@ -186,10 +186,35 @@ async function run() {
       }
     });
 
+    // GET all assignments by class ID
+    app.get('/assignments/:courseId', async (req, res) => {
+      const classId = req.params.courseId
+      const assignments = await assignmentsCollection.find({ classId: new ObjectId(classId) }).toArray();
+      res.send(assignments);
+    });
+
     // post assignment data
     app.post('/assignments', async (req, res) => {
-      const assignment = req.body;
+      const { title, description, deadline, create_date, assignment_count, submission_count, id } = req.body;
+      const assignment = {
+        title: title,
+        description: description,
+        deadline: deadline,
+        create_date: create_date,
+        assignment_count: assignment_count,
+        submission_count: submission_count,
+        classId: new ObjectId(id),
+
+      }
       const result = await assignmentsCollection.insertOne(assignment);
+      // increase assignment count
+      if (result.insertedId) {
+      
+      await addClassCollection.updateOne( 
+        { _id: new ObjectId(assignment.classId) },
+        { $inc: { assignmentCount: 1 } } 
+      );
+    }
       res.send(result);
     });
 
@@ -258,7 +283,7 @@ async function run() {
 
     // Mark payment and store history
     app.post('/payments', async (req, res) => {
-      const { courseId, transactionId, amount, currency, email, paymentMethod } = req.body;
+      const { courseId, transactionId, amount, email, paymentMethod } = req.body;
 
       try {
 
