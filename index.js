@@ -32,6 +32,7 @@ async function run() {
     const addClassCollection = client.db('teacherDB').collection('addCllass')
     const usersCollection = client.db('teacherDB').collection('users')
     const paymentsCollection = client.db('teacherDB').collection('payments')
+    const assignmentsCollection = client.db('teacherDB').collection('assignments')
 
 
     // Search user by email or name (partial match)
@@ -185,6 +186,13 @@ async function run() {
       }
     });
 
+    // post assignment data
+    app.post('/assignments', async (req, res) => {
+      const assignment = req.body;
+      const result = await assignmentsCollection.insertOne(assignment);
+      res.send(result);
+    });
+
     // get all pending application
     app.get('/pending-teachers', async (req, res) => {
       try {
@@ -268,9 +276,9 @@ async function run() {
         const paymentResult = await paymentsCollection.insertOne(paymentEntry);
 
         if (paymentResult.insertedId) {
-                    const updateResult = await addClassCollection.updateOne(
-            { _id: new ObjectId(courseId) }, 
-            { $inc: { enrollmentCount: 1 } } 
+          const updateResult = await addClassCollection.updateOne(
+            { _id: new ObjectId(courseId) },
+            { $inc: { enrollmentCount: 1 } }
           );
 
         }
