@@ -56,6 +56,21 @@ async function run() {
       res.send(users);
     });
 
+    // GET a single user by email to show profile data
+    app.get('/users/:email', async (req, res) => {
+      const email = req.params.email;
+      try {
+        const user = await usersCollection.findOne({ email });
+        if (user) {
+          res.send(user);
+        } else {
+          res.status(404).send({ message: 'User not found' });
+        }
+      } catch (err) {
+        res.status(500).send({ message: 'Server error' });
+      }
+    });
+
     // post user info
     app.post('/users', async (req, res) => {
       const email = req.body.email;
@@ -110,6 +125,25 @@ async function run() {
       const result = await addClassCollection.find().toArray();
       res.send(result);
     })
+
+    // sort classes based on enrollment count
+    app.get('/classes/popular', async (req, res) => {
+      try {
+        const popularClasses = await addClassCollection.find({
+          status: 'approved',
+          enrollmentCount: { $exists: true, $ne: null }
+        })
+          .sort({ enrollmentCount: -1 })
+          .limit(6)
+          .toArray();
+
+        res.send(popularClasses);
+      } catch (error) {
+        console.error('Error fetching popular classes:', error);
+        res.status(500).send({ error: 'Failed to fetch popular classes' });
+      }
+    });
+
 
     // get classes using specific id for class details page
     app.get('/classes/:id', async (req, res) => {
@@ -457,18 +491,44 @@ async function run() {
       }
     });
 
+    // get total classes,tptal enrollment,total user
+    app.get('/total-count', async (req, res) => {
+      try {
+        const totalUsers = await usersCollection.countDocuments({});
+        const totalClasses = await addClassCollection.countDocuments({ status: 'approved' });
+        const totalEnrollments = await paymentsCollection.countDocuments({});
+        res.send({
+          totalUsers,
+          totalClasses,
+          totalEnrollments,
+        });
+
+      } catch (error) {
+        console.error('Error fetching admin stats:', error);
+        res.status(500).send({ error: 'Failed to fetch admin stats' });
+      }
+    });
+
+
+    // get all reviews
+    app.get('/all-feedback', async (req, res) => {
+      const result = await reviewsCollection.find().toArray()
+      res.send(result);
+    })
+
     // POST TER (Teacher Evaluation & Review)
     app.post('/teacherEvaluation', async (req, res) => {
       try {
-        const {rating,description,courseId,createdAt,studentName,studentEmail} = req.body;
+        const { rating, description, courseId, createdAt, studentName, studentEmail, image } = req.body;
 
         const result = await reviewsCollection.insertOne({
-          rating:rating,
-          description:description,
-          studentName:studentName,
-          studentEmail:studentEmail,
-          createdAt:createdAt,
-          courseId:new ObjectId(courseId)
+          rating: rating,
+          description: description,
+          studentName: studentName,
+          studentEmail: studentEmail,
+          image: image,
+          createdAt: createdAt,
+          courseId: new ObjectId(courseId)
         });
 
         res.status(201).send({
