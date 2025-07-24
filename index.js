@@ -4,12 +4,18 @@ const cors = require('cors');
 require('dotenv').config();
 const stripe = require('stripe')(process.env.PAYMENT_GATEWAY_KEY);
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
+const admin = require("firebase-admin");
 const port = process.env.PORT || 3000;
 
 // midleweare
 app.use(cors());
 app.use(express.json());
 
+const serviceAccount = require("./firebase-admin-key.json");
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 // mongodb connection
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@data-house.3s1f0x8.mongodb.net/?retryWrites=true&w=majority&appName=Data-house`;
@@ -35,6 +41,41 @@ async function run() {
     const assignmentsCollection = client.db('teacherDB').collection('assignments')
     const assignmentSubmissionsCollection = client.db('teacherDB').collection('submissions')
     const reviewsCollection = client.db('teacherDB').collection('reviews')
+
+    //  custom midlewares
+    const verifyFbToken = async (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (!authHeader) {
+        return res.status(401).send({ message: 'unauthorized access' })
+      }
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        return res.status(401).send({ message: 'unauthorized access' })
+      }
+
+      // verifyToken
+      try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.decoded = decoded;
+        next();
+      }
+      catch (error) {
+        return res.status(403).send({ message: 'forbidden access' })
+      }
+
+    }
+
+    // verify admin
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded.email;
+      const query = { email }
+      const user = await usersCollection.findOne(query)
+      if (!user || user.role !== 'admin') {
+        return res.status(403).send({ message: "forbidden access" })
+        
+      }
+      next();
+    }
 
 
     // Search user by email or name (partial match)
@@ -71,6 +112,28 @@ async function run() {
       }
     });
 
+    // Example: GET users role by email
+    app.get('/users/:email/role', async (req, res) => {
+      const email = req.params.email;
+
+      if (!email) {
+        return res.status(400).send({ message: 'Email is required' });
+      }
+
+      try {
+        const user = await usersCollection.findOne({ email });
+
+        if (!user) {
+          return res.status(404).send({ message: 'User not found' });
+        }
+
+        res.send({ role: user.role || 'student' });
+      } catch (error) {
+        res.status(500).send({ message: 'Server error', error });
+      }
+    });
+
+
     // post user info
     app.post('/users', async (req, res) => {
       const email = req.body.email;
@@ -85,8 +148,9 @@ async function run() {
     });
 
     // Make user admin
-    app.patch('/users/:id/make-admin', async (req, res) => {
+    app.patch('/users/:id/make-admin', verifyFbToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
+      console.log(id)
       const result = await usersCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { role: 'admin' } }
@@ -95,7 +159,7 @@ async function run() {
     });
 
     // Remove admin role
-    app.patch('/users/:id/remove-admin', async (req, res) => {
+    app.patch('/users/:id/remove-admin', verifyFbToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const result = await usersCollection.updateOne(
         { _id: new ObjectId(id) },
@@ -122,8 +186,19 @@ async function run() {
 
     // get all added class
     app.get('/classes', async (req, res) => {
-      const result = await addClassCollection.find().toArray();
+      const page = parseInt(req.query.page);
+      const size = parseInt(req.query.size);
+      const result = await addClassCollection.find()
+      .skip(page * size)
+      .limit(size)
+      .toArray()
       res.send(result);
+    })
+
+    // get class count for pagination in admin all classes route
+    app.get('/totalClassCount',async(req,res)=>{
+      const count = await addClassCollection.estimatedDocumentCount();
+      res.send({count});
     })
 
     // sort classes based on enrollment count
@@ -153,7 +228,7 @@ async function run() {
     });
 
     // get all approved classes
-    app.get('/approvedclasses', async (req, res) => {
+    app.get('/approvedclasses', verifyFbToken, async (req, res) => {
       try {
 
         const result = await addClassCollection
@@ -174,17 +249,29 @@ async function run() {
     // update add class info by teacher
     app.patch('/classes/:id', async (req, res) => {
       const id = req.params.id;
-      const updateData = req.body;
+      const {title,image,description,price} = req.body;
+      // const updatedData = req.body;
+      // console.log(updatedData)
 
       try {
         const result = await addClassCollection.updateOne(
           { _id: new ObjectId(id) },
-          { $set: updateData }
+          { $set: {title, image,description,price}}
+          // { $set: updatedData}
         );
         res.send(result);
       } catch (error) {
         res.status(500).send({ message: 'Failed to update class', error });
       }
+    });
+
+    // change class status
+    app.patch('/classes/status/:id', async (req, res) => {
+      const id = req.params.id;
+      const updatedStatus = req.body.status;
+      const result = await addClassCollection
+        .updateOne({ _id: new ObjectId(id) }, { $set: { status: updatedStatus } });
+      res.send(result);
     });
 
     // get all added classes by teacher email
@@ -296,7 +383,7 @@ async function run() {
         const assignmentCount = classDetails.assignment_count || 0;
 
         const assignmentsInClass = await assignmentsCollection.find({ classId: new ObjectId(classId) }).toArray();
-        console.log(assignmentsInClass);
+        // console.log(assignmentsInClass);
         let totalSubmissionCount = 0;
         assignmentsInClass.forEach(assignment => {
           totalSubmissionCount += assignment.submission_count || 0;
@@ -371,11 +458,15 @@ async function run() {
       res.send(result);
     });
 
-    // get all pending application
-    app.get('/pending-teachers', async (req, res) => {
+    // get all teacher application
+    app.get('/allteachers', async (req, res) => {
+      const page = parseInt(req.query.page);
+      const size = parseInt(req.query.size);
       try {
         const result = await teachersCollection
-          .find({ status: 'pending' })
+          .find()
+          .skip(page * size)
+          .limit(size)
           .toArray();
 
         res.status(200).send(result);
@@ -384,6 +475,12 @@ async function run() {
         res.status(500).send({ message: 'Server error. Please try again later.' });
       }
     });
+
+    // get all teacher count for pagination in admin all teacher route
+    app.get('/allTeachersCount',async(req,res)=>{
+      const count = await teachersCollection.estimatedDocumentCount();
+      res.send({count});
+    })
 
     // update teachers status using patch using id
     app.patch('/teachers/status/:id', async (req, res) => {
