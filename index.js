@@ -10,8 +10,8 @@ const port = process.env.PORT || 3000;
 // midleweare
 app.use(cors());
 app.use(express.json());
-
-const serviceAccount = require("./firebase-admin-key.json");
+const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
+const serviceAccount = JSON.parse(decodedKey);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
@@ -32,7 +32,7 @@ const client = new MongoClient(uri, {
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const teachersCollection = client.db('teacherDB').collection('teachers')
     const addClassCollection = client.db('teacherDB').collection('addCllass')
@@ -88,7 +88,7 @@ async function run() {
       const users = await usersCollection.find({
         $or: [
           { email: { $regex: search, $options: 'i' } },
-          // { name: { $regex: search, $options: 'i' } }
+          
         ]
       })
         .limit(10)
@@ -319,67 +319,6 @@ async function run() {
         res.status(500).send({ error: 'Failed to add class' });
       }
     });
-
-    // Count enrollments
-    // app.get('/enrollments/count/:id', async (req, res) => {
-
-    //   const count = await addClassCollection.countDocuments({ classId: req.params.id });
-    //   res.send({ count });
-    // });
-
-    // for (const payment of enrolledClasses) {
-    //       const courseDetails = await addClassCollection.findOne({ _id: new ObjectId(payment.courseId) });
-    //       if (courseDetails) {
-    //         enrolledClassesDetails.push({
-    //           ...payment,
-    //           courseTitle: courseDetails.title,
-    //           instructorName: courseDetails.name,
-    //           courseImage: courseDetails.image,
-    //         });
-    //       }
-    //     }
-    //     app.get('/classes/assignment/:classId', async (req, res) => {
-    //   try {
-    //     const classId = req.params.classId;
-    //     const classObjectId = new ObjectId(classId); 
-
-    //     const classDetails = await addClassCollection
-    //     .findOne({ _id: classObjectId })
-    //     .toArray()
-    //     ;
-    //     const classesProgressDetails = [];
-    //     for(const progressData of classDetails){
-    //       const submissionCount = await assignmentSubmissionsCollection.findOne({ classObjectId: new ObjectId(classId) });
-    //     if (submissionCount) {
-    //             classesProgressDetails.push({
-    //               ...progressData,
-    //               submission_count:submissionCount.submission_count
-    //             });
-
-    //     }
-
-    //     }
-
-
-    //     // if (!classDetails) {
-    //     //   return res.status(404).send({ message: 'Class not found' });
-    //     // }
-
-
-    //     // const totalSubmissionCount = await assignmentSubmissionsCollection.countDocuments({ courseId: classId });
-
-
-    //     // const responseData = {
-    //     //   ...classDetails,
-    //     //   submission_count: totalSubmissionCount,
-    //     // };
-
-    //     res.send(responseData);
-    //   } catch (error) {
-    //     console.error('Error fetching class details:', error);
-    //     res.status(500).send({ error: 'Failed to fetch class details' });
-    //   }
-    // });
 
     // get totalSubmissionCount,assignmentCount,enrollmentCount
 
@@ -654,8 +593,8 @@ async function run() {
 
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log("Pinged your deployment. You successfully connected to MongoDB!");
+    // await client.db("admin").command({ ping: 1 });
+    // console.log("Pinged your deployment. You successfully connected to MongoDB!");
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
