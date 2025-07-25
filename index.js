@@ -229,7 +229,7 @@ async function run() {
     });
 
     // get all approved classes
-    app.get('/approvedclasses', async (req, res) => {
+    app.get('/approvedclasses',verifyFbToken, async (req, res) => {
       const page = parseInt(req.query.page);
       const size = parseInt(req.query.size);
       try {
