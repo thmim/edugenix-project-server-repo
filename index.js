@@ -72,14 +72,14 @@ async function run() {
       const user = await usersCollection.findOne(query)
       if (!user || user.role !== 'admin') {
         return res.status(403).send({ message: "forbidden access" })
-        
+
       }
       next();
     }
 
 
     // Search user by email or name (partial match)
-    app.get('/users/search',verifyFbToken,verifyAdmin, async (req, res) => {
+    app.get('/users/search', verifyFbToken, verifyAdmin, async (req, res) => {
       const search = req.query.email;
       if (!search) {
         return res.status(400).send({ message: 'Search query is required' });
@@ -88,7 +88,7 @@ async function run() {
       const users = await usersCollection.find({
         $or: [
           { email: { $regex: search, $options: 'i' } },
-          
+
         ]
       })
         .limit(10)
@@ -98,7 +98,7 @@ async function run() {
     });
 
     // GET a single user by email to show profile data
-    app.get('/users/:email',verifyFbToken, async (req, res) => {
+    app.get('/users/:email', verifyFbToken, async (req, res) => {
       const email = req.params.email;
       try {
         const user = await usersCollection.findOne({ email });
@@ -113,7 +113,7 @@ async function run() {
     });
 
     // Example: GET users role by email
-    app.get('/users/:email/role',verifyFbToken, async (req, res) => {
+    app.get('/users/:email/role', verifyFbToken, async (req, res) => {
       const email = req.params.email;
 
       if (!email) {
@@ -169,7 +169,7 @@ async function run() {
     });
 
     // post teacher application data
-    app.post('/teacher-application',verifyFbToken, async (req, res) => {
+    app.post('/teacher-application', verifyFbToken, async (req, res) => {
       try {
         const application = req.body;
         const result = await teachersCollection.insertOne(application);
@@ -185,21 +185,21 @@ async function run() {
     });
 
     // get all added class
-    app.get('/classes',verifyFbToken,verifyAdmin, async (req, res) => {
+    app.get('/classes', verifyFbToken, verifyAdmin, async (req, res) => {
       const page = parseInt(req.query.page);
       const size = parseInt(req.query.size);
       const result = await addClassCollection.find()
-      .sort({ createdAt: -1 })
-      .skip(page * size)
-      .limit(size)
-      .toArray()
+        .sort({ createdAt: -1 })
+        .skip(page * size)
+        .limit(size)
+        .toArray()
       res.send(result);
     })
 
     // get class count for pagination in admin all classes route
-    app.get('/totalClassCount',async(req,res)=>{
+    app.get('/totalClassCount', async (req, res) => {
       const count = await addClassCollection.estimatedDocumentCount();
-      res.send({count});
+      res.send({ count });
     })
 
     // sort classes based on enrollment count
@@ -222,38 +222,127 @@ async function run() {
 
 
     // get classes using specific id for class details page
-    app.get('/classes/:id',verifyFbToken, async (req, res) => {
+    // app.get('/classes/:id', verifyFbToken, async (req, res) => {
+    //   const { id } = req.params;
+    //   const classData = await addClassCollection.findOne({ _id: new ObjectId(id) });
+    //   res.send(classData);
+    // });
+
+    app.get("/classes-details/:id",verifyFbToken, async (req, res) => {
       const { id } = req.params;
-      const classData = await addClassCollection.findOne({ _id: new ObjectId(id) });
-      res.send(classData);
-    });
-
-    // get all approved classes
-    app.get('/approvedclasses',verifyFbToken, async (req, res) => {
-      const page = parseInt(req.query.page);
-      const size = parseInt(req.query.size);
+      
       try {
+        const classData = await addClassCollection.aggregate([
+          {
+            $match: { _id: new ObjectId(id) } 
+          },
+          {
+            $lookup: {
+              from: "reviews",               
+              localField: "_id",             
+              foreignField: "courseId",      
+              as: "courseReviews"
+            }
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "email",           
+              foreignField: "email",         
+              as: "courseInstructor"
+            }
+          },
+          {
+            $addFields: {
+              averageRating: { $avg: "$courseReviews.rating" },
+              totalReviews: { $size: "$courseReviews" },
+              courseInstructor: { $arrayElemAt: ["$courseInstructor", 0] }
+            }
+          }
+        ])
+          
+          .toArray();;
 
-        const result = await addClassCollection
-          .find({ status: 'approved' })
-          .skip(page * size)
-          .limit(size)
-          .toArray();
-        res.send(result);
-      } catch (error) {
-        res.status(500).send({ message: 'Server error while fetching classes' });
+        res.send(classData);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Something went wrong" });
       }
     });
 
+    // get all approved classes
+    // app.get('/approvedclasses', async (req, res) => {
+    //   const page = parseInt(req.query.page);
+    //   const size = parseInt(req.query.size);
+    //   try {
+
+    //     const result = await addClassCollection
+    //       .find({ status: 'approved' })
+    //       .skip(page * size)
+    //       .limit(size)
+    //       .toArray();
+    //     res.send(result);
+    //   } catch (error) {
+    //     res.status(500).send({ message: 'Server error while fetching classes' });
+    //   }
+    // });
+
+
+    // GET all approved courses with reviews + instructor + average rating
+    app.get("/approved-courses", async (req, res) => {
+      const page = parseInt(req.query.page);
+      const size = parseInt(req.query.size);
+      try {
+        const approvedCourses = await addClassCollection.aggregate([
+          {
+            $match: { status: "approved" } 
+          },
+          {
+            $lookup: {
+              from: "reviews",               
+              localField: "_id",             
+              foreignField: "courseId",      
+              as: "courseReviews"
+            }
+          },
+          {
+            $lookup: {
+              from: "users",
+              localField: "email",           
+              foreignField: "email",         
+              as: "courseInstructor"
+            }
+          },
+          {
+            $addFields: {
+              averageRating: { $avg: "$courseReviews.rating" },
+              totalReviews: { $size: "$courseReviews" },
+              courseInstructor: { $arrayElemAt: ["$courseInstructor", 0] }
+            }
+          }
+        ])
+          .skip(page * size)
+          .limit(size)
+          .toArray();;
+
+        res.send(approvedCourses);
+      } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Something went wrong" });
+      }
+    });
+
+
+
     // get approveclasses count for pagination
-    app.get('/allApproveClassCount',async(req,res)=>{
+    app.get('/allApproveClassCount', async (req, res) => {
       const count = await addClassCollection
-      .countDocuments({ status: 'approved' });
-      res.send({count});
+        .countDocuments({ status: 'approved' });
+      res.send({ count });
     })
 
     // get add class by id
-    app.get('/my-classes/:id',verifyFbToken, async (req, res) => {
+    app.get('/my-classes/:id', verifyFbToken, async (req, res) => {
       const id = req.params.id;
       const classData = await addClassCollection.findOne({ _id: new ObjectId(id) });
       res.send(classData);
@@ -261,13 +350,13 @@ async function run() {
 
 
     // update add class info by teacher
-    app.patch('/classes/:id',verifyFbToken, async (req, res) => {
+    app.patch('/classes/:id', verifyFbToken, async (req, res) => {
       const id = req.params.id;
-      const {title,image,description,price} = req.body;
+      const { title, image, description, price } = req.body;
       try {
         const result = await addClassCollection.updateOne(
           { _id: new ObjectId(id) },
-          { $set: {title, image,description,price}}
+          { $set: { title, image, description, price } }
           // { $set: updatedData}
         );
         res.send(result);
@@ -277,7 +366,7 @@ async function run() {
     });
 
     // change class status
-    app.patch('/classes/status/:id',verifyFbToken,verifyAdmin, async (req, res) => {
+    app.patch('/classes/status/:id', verifyFbToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const updatedStatus = req.body.status;
       const result = await addClassCollection
@@ -286,7 +375,7 @@ async function run() {
     });
 
     // get all added classes by teacher email
-    app.get('/my-classes',verifyFbToken, async (req, res) => {
+    app.get('/my-classes', verifyFbToken, async (req, res) => {
       const email = req.query.email;
       try {
         const result = await addClassCollection.find({ email }).toArray();
@@ -298,7 +387,7 @@ async function run() {
 
     // DELETE /classes/:id by teacher
 
-    app.delete('/my-classes/:id',verifyFbToken, async (req, res) => {
+    app.delete('/my-classes/:id', verifyFbToken, async (req, res) => {
       const id = req.params.id;
       try {
         const result = await addClassCollection.deleteOne({ _id: new ObjectId(id) });
@@ -322,7 +411,7 @@ async function run() {
 
     // get totalSubmissionCount,assignmentCount,enrollmentCount
 
-    app.get('/classes/assignment/:classId',verifyFbToken, async (req, res) => {
+    app.get('/classes/assignment/:classId', verifyFbToken, async (req, res) => {
       try {
         const classId = req.params.classId;
         const classObjectId = new ObjectId(classId);
@@ -357,7 +446,7 @@ async function run() {
 
 
     // GET all assignments by class ID
-    app.get('/assignments/:courseId',verifyFbToken, async (req, res) => {
+    app.get('/assignments/:courseId', verifyFbToken, async (req, res) => {
       const classId = req.params.courseId
       const assignments = await assignmentsCollection.find({ classId: new ObjectId(classId) }).toArray();
       res.send(assignments);
@@ -411,7 +500,7 @@ async function run() {
     });
 
     // get all teacher application
-    app.get('/allteachers',verifyFbToken,verifyAdmin, async (req, res) => {
+    app.get('/allteachers', verifyFbToken, verifyAdmin, async (req, res) => {
       const page = parseInt(req.query.page);
       const size = parseInt(req.query.size);
       try {
@@ -430,13 +519,13 @@ async function run() {
     });
 
     // get all teacher count for pagination in admin all teacher route
-    app.get('/allTeachersCount',async(req,res)=>{
+    app.get('/allTeachersCount', async (req, res) => {
       const count = await teachersCollection.estimatedDocumentCount();
-      res.send({count});
+      res.send({ count });
     })
 
     // update teachers status using patch using id
-    app.patch('/teachers/status/:id',verifyFbToken,verifyAdmin, async (req, res) => {
+    app.patch('/teachers/status/:id', verifyFbToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
       const { status, email } = req.body; // either "approved" or "rejected"
       const result = await teachersCollection.updateOne(
@@ -459,7 +548,7 @@ async function run() {
     });
 
     // Get enrolled classes for a user
-    app.get('/enrolled-classes/:email',verifyFbToken, async (req, res) => {
+    app.get('/enrolled-classes/:email', verifyFbToken, async (req, res) => {
       try {
         const email = req.params.email;
         //get enrolled class Data to aggregate paymentsCollection and classCollection
