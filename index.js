@@ -12,7 +12,6 @@ app.use(cors());
 app.use(express.json());
 const decodedKey = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8');
 const serviceAccount = JSON.parse(decodedKey);
-
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount)
 });
@@ -64,6 +63,7 @@ async function run() {
       }
 
     }
+
 
     // verify admin
     const verifyAdmin = async (req, res, next) => {
@@ -126,9 +126,11 @@ async function run() {
         if (!user) {
           return res.status(404).send({ message: 'User not found' });
         }
+       
 
         res.send({ role: user.role || 'student' });
       } catch (error) {
+
         res.status(500).send({ message: 'Server error', error });
       }
     });
@@ -138,7 +140,7 @@ async function run() {
     app.post('/users', async (req, res) => {
       const email = req.body.email;
       const user = req.body;
-      console.log(user)
+      // console.log(user)
       const existingUser = await usersCollection.findOne({ email });
       if (!existingUser) {
         // Create new user
@@ -150,7 +152,7 @@ async function run() {
     // Make user admin
     app.patch('/users/:id/make-admin', verifyFbToken, verifyAdmin, async (req, res) => {
       const { id } = req.params;
-      console.log(id)
+      // console.log(id)
       const result = await usersCollection.updateOne(
         { _id: new ObjectId(id) },
         { $set: { role: 'admin' } }
@@ -429,7 +431,7 @@ async function run() {
         assignmentsInClass.forEach(assignment => {
           totalSubmissionCount += assignment.submission_count || 0;
         });
-        console.log(totalSubmissionCount);
+        // console.log(totalSubmissionCount);
         const responseData = {
 
           enrollmentCount: enrollmentCount,
@@ -542,7 +544,7 @@ async function run() {
           }
         }
         const roleRes = await usersCollection.updateOne(userQuery, userUpdateDoc)
-        console.log(roleRes.modifiedCount)
+        // console.log(roleRes.modifiedCount)
       }
       res.send(result);
     });
